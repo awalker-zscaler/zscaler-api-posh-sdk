@@ -1,6 +1,105 @@
+Write-Host "`nZSCALER " -ForegroundColor Cyan -NoNewline
+Write-Host " - Public Sector Professional Services - " -NoNewline
+Write-Host " Backup and Restore Utility`n`n" -ForegroundColor Red
+Add-Type -AssemblyName System.Windows.Forms
+
 # Show MIT License
 Write-Host (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/awalker-zscaler/branding/main/LICENSE").content -ForegroundColor DarkGray
 
+Function Invoke-WriteLog {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, Position=0)][ValidateSet("CRITICAL","DANGER","WARNING","INFORM","SUCCESS","DEBUG")]$severity,
+        [Parameter(Mandatory, Position=1)][string]$message
+    )
+    $logtable.ReadOnly = $false
+    IF($severity -eq "CRITICAL"){
+        Write-Host $("{0:HH:mm:ss:fff}:" -f (Get-Date)) -NoNewline -ForegroundColor DarkGray
+        Write-Host " CRITICAL " -ForegroundColor DarkRed -NoNewline
+        Write-Host " $message"
+        $logtable.AppendText("`r`n" + "$("{0:HH:mm:ss:fff}:" -f (Get-Date)) CRITICAL  $message")
+        $logtable.ScrollToCaret()
+    }ELSEIF($severity -eq "DANGER"){
+        Write-Host $("{0:HH:mm:ss:fff}:" -f (Get-Date)) -NoNewline -ForegroundColor DarkGray
+        Write-Host " DANGER   " -ForegroundColor Red
+        Write-Host " $message"
+        $logtable.AppendText("`r`n" + "$("{0:HH:mm:ss:fff}:" -f (Get-Date)) DANGER    $message")
+        $logtable.ScrollToCaret()
+    }ELSEIF($severity -eq "WARNING"){
+        Write-Host $("{0:HH:mm:ss:fff}:" -f (Get-Date)) -NoNewline -ForegroundColor DarkGray
+        Write-Host " WARNING  " -ForegroundColor Yellow -NoNewline
+        Write-Host " $message"
+        $logtable.AppendText("`r`n" + "$("{0:HH:mm:ss:fff}:" -f (Get-Date)) WARNING   $message")
+        $logtable.ScrollToCaret()
+    }ELSEIF($severity -eq "INFORM"){
+        Write-Host $("{0:HH:mm:ss:fff}:" -f (Get-Date)) -NoNewline -ForegroundColor DarkGray
+        Write-Host " INFORM   " -ForegroundColor Blue -NoNewline
+        Write-Host " $message"
+        $logtable.AppendText("`r`n" + "$("{0:HH:mm:ss:fff}:" -f (Get-Date)) INFORM    $message")
+        $logtable.ScrollToCaret()
+    }ELSEIF($severity -eq "DEBUG" -and $settingsverboselog.checked){
+        Write-Host $("{0:HH:mm:ss:fff}:" -f (Get-Date)) -NoNewline -ForegroundColor DarkGray
+        Write-Host " DEBUG    " -ForegroundColor White -NoNewline
+        Write-Host " $message"
+        $logtable.AppendText("`r`n" + "$("{0:HH:mm:ss:fff}:" -f (Get-Date)) DEBUG     $message")
+        $logtable.ScrollToCaret()
+    }ELSEIF($severity -eq "SUCCESS"){
+        Write-Host $("{0:HH:mm:ss:fff}:" -f (Get-Date)) -NoNewline -ForegroundColor DarkGray
+        Write-Host " SUCCESS  " -ForegroundColor GREEN -NoNewline
+        Write-Host " $message"
+        $logtable.AppendText("`r`n" + "$("{0:HH:mm:ss:fff}:" -f (Get-Date)) SUCCESS   $message")
+        $logtable.ScrollToCaret()
+    }
+    $logtable.ReadOnly = $true
+
+}
+Function Invoke-ConfigBackup {
+    $FileBrowser = New-Object System.Windows.Forms.SaveFileDialog 
+    $FileBrowser.InitialDirectory = [Environment]::GetFolderPath('Desktop')
+    $FileBrowser.Title = "Save Configuration File"
+    $FileBrowser.filter = "XML Document|*.xml"
+    $FileBrowser.AddExtension = "xml"
+    $FileBrowser.ShowDialog()
+    $path = $filebrowser.filename
+    IF($null -ne $path){
+        [PSCustomObject]@{
+            ZPAHost = $settingscloud.Text
+            Client_ID = $settingsclientid.Text
+            Client_Secret = $settingsclientsecret.Text
+            Customer_ID = $settingscustomerid.Text
+        } | Export-Clixml -Depth 3 -Path $path
+        Invoke-WriteLog INFORM "Saving configuration to $($path)"
+    }else{
+        return $false
+    }
+}
+Function Invoke-ConfigLoad {
+    $FileBrowser = New-Object System.Windows.Forms.OpenFileDialog
+    $FileBrowser.InitialDirectory = [Environment]::GetFolderPath('Desktop')
+    $FileBrowser.Title = "Load Configuration File"
+    $FileBrowser.filter = "XML Document|*.xml"
+    $FileBrowser.ShowDialog()
+    $path = $filebrowser.filename
+    IF($null -ne $path){
+        $config = Import-Clixml -Path $path
+        Invoke-WriteLog INFORM "Loading configuration from $($path)"
+        $global:zscaler.ZPAEnvironment.ZPAhost = $config.ZPAHost
+        $settingscloud.Text = $config.ZPAHost
+        Invoke-WriteLog DEBUG "Setting ZPA API Host to $($config.ZPAHost)"
+        $global:zscaler.ZPAEnvironment.client_id = $config.Client_ID
+        $settingsclientid.Text = $config.Client_ID
+        Invoke-WriteLog DEBUG "Setting Client ID to $($config.Client_ID)"
+        $global:zscaler.ZPAEnvironment.client_secret = $config.client_secret
+        $settingsclientsecret.Text = $config.client_secret
+        Invoke-WriteLog DEBUG "Setting Client Secret to $($config.client_secret)"
+        $global:zscaler.ZPAEnvironment.customer_id = $config.customer_id
+        $settingscustomerid.Text = $config.customer_id
+        Invoke-WriteLog DEBUG "Setting Customer ID to $($config.customer_id)"
+    }else{
+        return $false
+    }
+
+}
 # Load Images
 $global:zscaler_resources = [PSCustomObject]@{
     Settings = [PSCustomObject]@{
@@ -30,6 +129,7 @@ $global:zscaler_resources = [PSCustomObject]@{
     Icon = (Invoke-WebRequest -Uri "https://www.zscaler.com/favicon.ico").content
     Logo = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/awalker-zscaler/branding/main/resources/images/zscalerlogo.png").content
 }
+
 
 #region gui
 # Create a new GUI
@@ -443,27 +543,33 @@ $settingstitle.AutoSize         = $False
 $settingstitle.text             = "Application Settings"
 $settingstitle.font             = [System.Drawing.Font]::new("Arial", 12)
 # Settings Controls
+# ZPA Settings
+$settingszpalabel = New-Object System.Windows.Forms.Label
+$settingszpalabel.text       = "ZPA API Settings"
+$settingszpalabel.AutoSize   = $false
+$settingszpalabel.font       = [System.Drawing.Font]::new("Segoe UI", 9.75, [System.Drawing.FontStyle]::Underline)
+$settingszpalabel.location   = New-Object System.Drawing.Point(31,36)
+$settingszpalabel.width      = 115
+$settingszpalabel.height     = 17
 # Cloud Dropdown
 $settingscloud = New-object System.Windows.Forms.ComboBox
 $settingscloud.Items.Insert(0,"https://config.zpagov.net")
 $settingscloud.SelectedItem = "https://config.zpagov.net"
-$settingscloud.location        = New-Object System.Drawing.Point(213,51)
-$settingscloud.width           = 242
-$settingscloud.height          = 33
-$settingscloud.Text = $settingscloud.Text
-TRY{$settingscustomerid.Add_TextChanged({$settingscloud.Text = $settingscloud.Text})}CATCH{}
+$settingscloud.location        = New-Object System.Drawing.Point(122,62)
+$settingscloud.width           = 181
+$settingscloud.height          = 23
 # Cloud Dropdown Label
 $settingscloudlabel = New-Object System.Windows.Forms.Label
+$settingscloudlabel.AutoSize   = $false
 $settingscloudlabel.text       = "API Endpoint : "
-$settingscloudlabel.location   = New-Object System.Drawing.Point(122,55)
+$settingscloudlabel.location   = New-Object System.Drawing.Point(31,62)
 $settingscloudlabel.width      = 85
-$settingscloudlabel.height     = 15
+$settingscloudlabel.height     = 23
 # Client ID Textbox
 $settingsclientid = New-Object System.Windows.Forms.TextBox
-$settingsclientid.location = New-Object System.Drawing.Point(213,80)
-$settingsclientid.width    = 242
-$settingsclientid.height   = 33
-TRY{$settingscustomerid.Add_TextChanged({$Global:zscaler.ZPAEnvironment.client_id = $settingsclientid.Text})}CATCH{}
+$settingsclientid.location = New-Object System.Drawing.Point(122,91)
+$settingsclientid.width    = 181
+$settingsclientid.height   = 23
 # Client ID Label
 $settingsclientidlabel = New-Object System.Windows.Forms.Label
 $settingsclientidlabel.text     = "Client ID : "
@@ -475,7 +581,6 @@ $settingsclientsecret = New-Object System.Windows.Forms.TextBox
 $settingsclientsecret.location = New-Object System.Drawing.Point(213,109)
 $settingsclientsecret.width    = 242
 $settingsclientsecret.height   = 23
-TRY{$settingscustomerid.Add_TextChanged({$Global:zscaler.ZPAEnvironment.client_secret = $settingsclientsecret.Text})}CATCH{}
 # Client Secret Label
 $settingsclientsecretlabel = New-Object System.Windows.Forms.Label
 $settingsclientsecretlabel.text     = "Client Secret : "
@@ -487,7 +592,6 @@ $settingscustomerid = New-Object System.Windows.Forms.TextBox
 $settingscustomerid.location = New-Object System.Drawing.Point(213,138)
 $settingscustomerid.width    = 242
 $settingscustomerid.height   = 23
-TRY{$settingscustomerid.Add_TextChanged({$Global:zscaler.ZPAEnvironment.customer_id = $settingscustomerid.Text})}CATCH{}
 # Customer ID Label
 $settingscustomeridlabel = New-Object System.Windows.Forms.Label
 $settingscustomeridlabel.text     = "Customer ID : "
@@ -523,7 +627,7 @@ $settingsverboselog.Location = New-Object System.Drawing.Point(180,169)
 $settingsverboselog.Width = 118
 $settingsverboselog.Height = 19
 # Add items to settings panel
-$settingspanel.Controls.AddRange(@($settingstitle,$settingscloud,$settingscloudlabel,$settingsclientid,$settingsclientidlabel,$settingscustomerid,$settingscustomeridlabel,$settingsclientsecret,$settingsclientsecretlabel,$settingsverboselog,$settingsloadbutton,$settingssavebutton))
+$settingspanel.Controls.AddRange(@($settingstitle,$settingscloud,$settingscloudlabel,$settingsclientid,$settingsclientidlabel,$settingscustomerid,$settingscustomeridlabel,$settingsclientsecret,$settingsclientsecretlabel,$settingsverboselog,$settingsloadbutton,$settingssavebutton,$settingszpalabel))
 #endregion settings
 
 #region backup
