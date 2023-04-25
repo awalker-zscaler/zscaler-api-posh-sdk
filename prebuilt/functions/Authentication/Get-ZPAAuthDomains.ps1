@@ -29,16 +29,5 @@ Function Get-ZPAAuthDomains{
         [Parameter(Mandatory, Position=2)]$zscalercloud # The ZScaler Cloud of your tenant
     )
     $apiurl = "https://$($zscalercloud)/mgmtconfig/v1/admin/customers/$($customerid)/authDomains"
-    $response = Invoke-RestMethod -URI "$($apiurl)?page=1&pagesize=50" -Method Get -ContentType "*/*" -Headers @{ Authorization = "Bearer $token"}
-    IF($response.totalPages -eq "1"){
-        return $response.authdomains
-    }ELSEIF($response.totalPages -gt "1"){
-        $list = $response.authdomains
-        2..$($response.totalPages) | ForEach-Object{
-            $list += (Invoke-RestMethod -URI "$($apiurl)?page=$($_)&pagesize=50" -Method Get -ContentType "*/*" -Headers @{ Authorization = "Bearer $token"}).authdomains
-        }
-        return $list
-    }ELSE{
-        return $null
-    }
+    return (Invoke-RestMethod -URI "$($apiurl)?page=1&pagesize=50" -Method Get -ContentType "*/*" -Headers @{ Authorization = "Bearer $token"}).authdomains
 }
