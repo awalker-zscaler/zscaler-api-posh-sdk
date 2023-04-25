@@ -31,11 +31,11 @@ Function Get-ZPAAuthDomains{
     $apiurl = "https://$($zscalercloud)/mgmtconfig/v1/admin/customers/$($customerid)/authDomains"
     $response = Invoke-RestMethod -URI "$($apiurl)?page=1&pagesize=50" -Method Get -ContentType "*/*" -Headers @{ Authorization = "Bearer $token"}
     IF($response.totalPages -eq "1"){
-        return $response.list
+        return $response.authdomains
     }ELSEIF($response.totalPages -gt "1"){
-        $list = $response.list
+        $list = $response.authdomains
         2..$($response.totalPages) | ForEach-Object{
-            $list += (Invoke-RestMethod -URI "$($apiurl)?page=$($_)&pagesize=50" -Method Get -ContentType "*/*" -Headers @{ Authorization = "Bearer $token"}).list
+            $list += (Invoke-RestMethod -URI "$($apiurl)?page=$($_)&pagesize=50" -Method Get -ContentType "*/*" -Headers @{ Authorization = "Bearer $token"}).authdomains
         }
         return $list
     }ELSE{
