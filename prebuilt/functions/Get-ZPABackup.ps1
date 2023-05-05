@@ -1,4 +1,25 @@
+#Requires -Version 7.2
 Function Get-ZPABackup {
+    <#
+    .SYNOPSIS
+        Get a backup of you ZPA Configuration.
+    .DESCRIPTION
+        A function that returns your Zscaler ZPA configuration including logs of its activities. 
+        
+    .PARAMETER clientid
+        Your client id. See help here: https://help.zscaler.us/zpa/about-api-keys
+    .PARAMETER clientsecret
+        Your client secret. See help here: https://help.zscaler.us/zpa/adding-api-keys
+    .PARAMETER zscalercloud
+        The cloud that your tenant resides in. See help here: https://help.zscaler.us/zia/what-my-cloud-name-zia
+    .PARAMETER customerid
+        The ID of the tenant you wish to query. See help here: https://help.zscaler.com/zpa/about-api-keys
+    .OUTPUTS
+        [System.Management.Automation.PSCustomObject]
+    .EXAMPLE
+        # Note : Obviously, these are fake credentials, Please put your own credential set in the place of those specified here. They are included here so you can see the format of the variables.
+        $backups = Get-ZPABackup -clientid "NwtY1ZmNYzM5ONMhZt0DCLTgNhFOMzzi0TMYJWgw0TZzOgNxZjQtT2UOTdmzUD0MDWIMENzD" -clientsecret ']r[[9}bK}5NwQ)m6mkdc*|FU}]!+a04E' -zscalercloud "https://config.zpagov.net" -customerid "76543211234567890"
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, Position = 0)]$clientid, # Your Client ID
@@ -11,6 +32,37 @@ Function Get-ZPABackup {
         $logs = @()
         # SubFunctions
         function Invoke-ZPAAPILOGIN {
+            <#
+            .SYNOPSIS
+                Authenticate against the ZPA API
+        
+            .DESCRIPTION
+                A function that allows a user or script to log in to the ZScaler ZPA API on their tenant.
+        
+            .PARAMETER clientid
+                Your client id. See help here: https://help.zscaler.us/zpa/about-api-keys
+        
+            .PARAMETER clientsecret
+                Your client secret. See help here: https://help.zscaler.us/zpa/adding-api-keys
+        
+            .PARAMETER zscalercloud
+                The cloud that your tenant resides in. See help here: https://help.zscaler.us/zia/what-my-cloud-name-zia
+        
+            .OUTPUTS
+                [PSCustomObject]@{
+                    type = # Type of Authentication used (token)
+                    expires = # The time the token expires
+                    authenticated = # [Boolean] If the token is authenticated; used for automated validation
+                    token = # The actual token to use in other functions
+                }
+        
+            .EXAMPLE
+                $response = Invoke-ZPAAPILOGIN -clientid $clientid -clientsecret $clientsecret -zscalercloud "https://config.zpagov.net"
+        
+            .NOTES
+                Due to the inclusion of the "-form" flag on line 51, this function requires Powershell 7.2+
+        
+            #>
             [CmdletBinding()]
             param(
                 [Parameter(Mandatory, Position = 0)]$clientid, # Your Client ID
@@ -43,12 +95,33 @@ Function Get-ZPABackup {
             }
         }
         function Invoke-ZPAAPILOGOUT {
+            <#
+            .SYNOPSIS
+                Logout of the ZPA API
+        
+            .DESCRIPTION
+                A function that allows a user or script to log out of the ZScaler ZPA API on their tenant.
+        
+            .PARAMETER token
+                The token that was returned on your authenticated session.
+        
+            .PARAMETER zscalercloud
+                The cloud that your tenant resides in.
+        
+            .OUTPUTS
+                [BOOL] TRUE # Successfully unauthenticated
+                [BOOL] FALSE # Unable to logout
+        
+            .EXAMPLE
+                $response = Invoke-ZPAAPILOGOUT -token "eyJOiJoUGFraWQinTFFndzh....TRFhHXy1KUER3pJZFQ4TmpOHVhSVgyc4t" -zscalercloud https://config.zpagov.net
+        
+            #>
             [CmdletBinding()]
             param(
                 [Parameter(Mandatory, Position = 0)]$token, # Your Authenticated Token
                 [Parameter(Mandatory, Position = 1)]$zscalercloud # The ZScaler Cloud of your tenant
             )
-            
+
             TRY {
                 Invoke-RestMethod -Uri "$($zscalercloud)/signout" -Method Post -ContentType '*/*' -Headers @{ Authorization = "Bearer $token" }
             }
@@ -59,6 +132,30 @@ Function Get-ZPABackup {
             return $true
         }
         Function Invoke-ZPASWAGGER {
+            <#
+            .SYNOPSIS
+                Get all ZPA API Methods
+        
+            .DESCRIPTION
+                A function that returns all API methods for the ZScaler ZPA Endpoints.
+        
+            .PARAMETER token
+                The token returned when you authenticated to the ZPA API. 
+        
+            .PARAMETER zscalercloud
+                The cloud that your tenant resides in.
+        
+            .OUTPUTS
+                [PSCustomObject]@{
+                    type = ADMIN_LOGIN # Login Type; This script only supports Admin login.
+                    authenticated = TRUE # [BOOL] If the session is authenticated.
+                    websession = Microsoft.PowerShell.Commands.WebRequestSession # The session that will be used for other API calls.
+                }
+        
+            .EXAMPLE
+                $zpaswagger = Invoke-ZPASWAGGER -token $token -zscalercloud https://config.zpagov.net
+                
+            #>
             [CmdletBinding()]
             param(
                 [Parameter(Mandatory, Position = 0)]$token, # Your Authenticated ZPA Token
@@ -82,6 +179,29 @@ Function Get-ZPABackup {
             return $zpaswagger
         }
         Function Get-ZPAAPIEndpoint {
+            <#
+            .SYNOPSIS
+                Executes a GET request against your Tenant.
+        
+            .DESCRIPTION
+                A function that returns a list of all ############### for your ZScaler ZPA Tenant
+        
+            .PARAMETER clientid
+                Your client id.
+        
+            .PARAMETER clientsecret
+                Your client secret. 
+        
+            .PARAMETER zscalercloud
+                The cloud that your tenant resides in.
+        
+            .OUTPUTS
+                [System.Management.Automation.PSCustomObject]
+        
+            .EXAMPLE
+                $authdomains = Get-ZPAAPIEndpoint -token $token -customerid $customerid -apiendpoint "https://config.zpagov.net/mgmtconfig/v1/admin/customers/{customerId}/authDomains"
+        
+            #>
             [CmdletBinding()]
             param(
                 [Parameter(Mandatory, Position = 0)]$token, # Your Authenticated ZPA Token
@@ -131,7 +251,7 @@ Function Get-ZPABackup {
             $logs += Write-LocalLog -severity "CRITICAL" -category "Authentication" -message "Unable to authenticate. Verify credentials, cloud, and connectivity."
             return $logs
         }
-        
+
     }
     process{
         $logs += Write-LocalLog -severity "INFORM" -category "Swagger" -message "Getting all Zscaler API Calls from Swagger."
